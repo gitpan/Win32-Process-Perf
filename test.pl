@@ -19,7 +19,7 @@ ok(1); # If we made it this far, we're ok.
 use Win32::Process::Perf;
 use strict;
 
-my $PERF = Win32::Process::Perf->new("RP", "hamster");
+my $PERF = Win32::Process::Perf->new("RP", "UEDIT32");
 if(!$PERF)
 {
 	die;
@@ -34,26 +34,28 @@ foreach (1 .. $anz)
 {
 	print $counternames{$_} . "\n";
 }
+print "\n";
 
 my $status = $PERF->PAddCounter();
 if($status == 0) {
 	my $error = $PERF->GetErrorText();
-	print $error . "\n";
+	print $error . "\n\n";
 	exit;
 }
 
+print "Values...\n";
 while(1)
 {
 	$status = $PERF->PCollectData();
 	if($status == 0) {
 		my $error = $PERF->GetErrorText();
-		print $error . "\n";
+		print "ERROR: " . $error . "\n";
 		exit;
 	}
 	my %val = $PERF->PGetCounterValues($status);
-	foreach  (1..$anz)
+	foreach  (1..$anz+1)
 	{
-		if(!$val{$_}) { exit; }
+		if(!$val{1}) { exit; }
 		my $key = $counternames{$_};
 		print "$key=" . $val{$_} . "\n";
 	}

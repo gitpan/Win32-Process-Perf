@@ -16,6 +16,14 @@
 //Check the README.TXT file that comes with this package for details about
 //	it's history.
 //
+// Changes made by Reinhard Pagitsch Copyright (c) August 2004:
+// Function: add_counter() to can use process name.
+// 
+// Changes made by Reinhard Pagitsch Copyright (c) September 2004:
+// Added: 
+// Function CPU_Time()
+// 
+
 
 #define WIN32_LEAN_AND_MEAN
 
@@ -401,7 +409,8 @@ connect_to_box(pBox, pError)
 				XPUSHs(sv_2mortal(newSViv(-1)));
 		}
 
-void explain_counter(pObject, pCounter, pInstance, pQwy, pError)
+void 
+explain_counter(pObject, pCounter, pInstance, pQwy, pError)
 	SV* pObject
 	SV* pCounter
 	SV* pInstance
@@ -554,4 +563,44 @@ void explain_counter(pObject, pCounter, pInstance, pQwy, pError)
 		}
 
 
-	
+void
+CPU_Time(sv_PID,pError)
+		SV* sv_PID
+		SV* pError
+	PREINIT:
+		HANDLE hprocess;
+		FILETIME CreationTime;
+		FILETIME ExitTime;
+		FILETIME KernelTime;
+		FILETIME UserTime;
+		SYSTEMTIME SystemTime;
+		int retcode;
+		long min;
+		long hour;
+		long sec;
+		long seconds = 0;
+		DWORD PID; 
+	PPCODE:
+			PID = (DWORD)SvIV(sv_PID);
+			if((hprocess = OpenProcess(PROCESS_ALL_ACCESS, 0, PID)) != NULL)
+			{
+				retcode = GetProcessTimes(hprocess,&CreationTime,&ExitTime,&KernelTime,&UserTime);
+				if(retcode) {
+					retcode = FileTimeToSystemTime(&KernelTime, &SystemTime);
+//					min = ;
+//					hour = ;
+//					sec = ;
+					seconds = (long)SystemTime.wSecond + ((long)SystemTime.wMinute*60) + ((long)SystemTime.wHour*3600);	//Cpu time?
+					retcode = FileTimeToSystemTime(&UserTime, &SystemTime);
+//					min = ;
+//					hour = ;
+//					sec = ;
+					seconds = seconds + ((long)SystemTime.wSecond + ((long)SystemTime.wMinute*60) + ((long)SystemTime.wHour*3600));
+				} else {
+					sv_setpv(pError, "Process coud not be opened.");
+					XPUSHs(sv_2mortal(newSViv(-1)));
+				}
+			}
+			CloseHandle(hprocess);
+			XPUSHs(sv_2mortal(newSViv(seconds)));			
+			

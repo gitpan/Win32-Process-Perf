@@ -19,7 +19,7 @@ our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 our @EXPORT = qw();
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 bootstrap Win32::Process::Perf $VERSION;
 
@@ -39,7 +39,6 @@ sub new
 	$self->{'processname'}=shift;	# The name of the process which want to capture
 	$self->{'logfile'}=undef;		# where the process informations are written
 	$self->{'process'}="Prozess";	# used internal
-#	$self->{'counters'}= ,			# these counters are used by the Module for the given process
 	$self->{'counternames'}={},		# get availabel Counternames from File
 	$self->{'counterhandels'}=[],
 	$self->{'zaehler'}=	0,
@@ -100,14 +99,24 @@ sub PGetCounterValues
 	my $self=shift;
 	my $count = $self->{zaehler};
 	my %h = ();
+	my $c = 0;
+	my $cputime=0;
 	$self->{'isError'} = 0;
-	foreach (1 .. $count) {
-		my $retval = collect_counter_value($self->{'HQUERY'}, $self->{'COUNTERS'}->{$_},$self->{'ERRORMSG'});
+	
+	foreach  (1 .. $count) {
+		$c=$_;
+		my $retval = collect_counter_value($self->{'HQUERY'}, $self->{'COUNTERS'}->{$c},$self->{'ERRORMSG'});
 		if($retval == -1) {
 			return;
 		}
-		$h{$_} = $retval;
+		if($c == 1)
+		{
+			$cputime = CPU_Time($retval,$self->{'ERRORMSG'});
+		}
+		$h{$c} = $retval;
 	}
+	$c++;
+	$h{$c} = $cputime;
 	return %h;
 }
 
@@ -142,11 +151,14 @@ sub GetCounterNames
 {
 	my $self=shift;
 	my %h = ();
+	my $c;
 	foreach (1 .. $self->{'numberofcounters'})
 	{
-		$h{$_} = $self->{'counternames'}->{$_};
+		$c=$_;
+		$h{$c} = $self->{'counternames'}->{$c};
 	}
-	
+	$c++;
+	$h{$c} = "CPU Time";
 	return %h;
 }
 
@@ -249,7 +261,6 @@ sub DESTROY {
 		CleanUp($self->{'HQUERY'});
 		$self->{'HQUERY'} = undef;
 	}
-	print "Counter destroyed!\n";
 }
 
 1;
@@ -265,7 +276,7 @@ Win32::Process::Perf Shows Performance counter for a process
 =head1 VERSION
   
 This document describes version 0.01 of Win32::Process::Perf, released
-October 26, 2004.
+September 12, 2004.
 
 =head1 SYNOPSIS
   
@@ -328,8 +339,20 @@ It uses the PDH library.
   
   NOTE: The first line have to be the name for process in YOUR language. e.g. in german is it
   Prozess.
+  The second line have to be the for the process ID in your language.
   At this time I have only support for Windows with en-us, de-at, de-ch. Maybe someone can 
   provide me with data files for his language.
+  
+  Sample for en-us (english US):
+  Process
+  ID Process
+  
+  Sample for de-at (german Austria,Germany):
+  Prozess
+  Prozesskennung
+  
+  Sample for spain: 
+  (please provide me with one)
 
 =head1 FUNCTIONS
 
@@ -375,10 +398,10 @@ This function retrives the data of all added counters.
    my %val = $PERF->PGetCounterValues();
 	
 To check if the process ended check if the value of the hash exist.
+The last value of %val is the CPU time in seconds of the process.
+Please take a look in test.pl
 
 =back
-
-  
 
 =head1 PREREQUISITE
 
@@ -387,8 +410,7 @@ Win32 dll's pdh.dll
 
 =head1 TODO
 
-1) Implementation of ProccessTimes to give the user the possibility to show CPU Time, CPU Usage and elapsed time
-   
+1) Better handling of the conter names provided in the *.dat files.
 
 =head1 AUTHOR
 

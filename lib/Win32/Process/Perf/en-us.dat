@@ -1,11 +1,11 @@
 Process
+ID Process
 % Privileged Time
 % Processor Time
 % User Time
 Creating Process ID
 Elapsed Time
 Handle Count
-ID Process
 IO Data Bytes/sec
 IO Data Operations/sec
 IO Other Bytes/sec
