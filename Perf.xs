@@ -34,8 +34,54 @@
 #include "PDH.h"
 #include "PDHMSG.h"
 #include "perf.h"
+#include <stdio.h>
+#include <tchar.h>
+#include <Sddl.h>
+
+#define INITIAL_SIZE 512
+
+void CleanUp(HANDLE hprocess, HANDLE hdlToken)
+{
+	if(hprocess)
+		CloseHandle(hprocess);
+	if(hdlToken)
+		CloseHandle(hdlToken);
+}
+
+BOOL ConvertSid(PSID pSid, LPTSTR szUser, LPTSTR szError)
+   {
+
+      DWORD cchUser = INITIAL_SIZE;
+      TCHAR szDomain[INITIAL_SIZE];
+      DWORD cchDomain = INITIAL_SIZE;
+      SID_NAME_USE snu;
+      ZeroMemory(szDomain, (sizeof(szDomain)/sizeof(TCHAR)));
+
+      //
+      // test if SID passed in is valid
+      //
+      if(!IsValidSid(pSid)) return FALSE;
+      if(LookupAccountSid(NULL, pSid, szUser, &cchUser, szDomain, &cchDomain, &snu)==0)
+      {
+		FormatMessage( 
+    		FORMAT_MESSAGE_ALLOCATE_BUFFER | 
+    		FORMAT_MESSAGE_FROM_SYSTEM | 
+    		FORMAT_MESSAGE_IGNORE_INSERTS,
+    		NULL,
+    		GetLastError(),
+    		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+    		szError,
+    		0,
+    		NULL );
+      	return FALSE;
+      }
+      return TRUE;
+
+   }
 
 MODULE = Win32::Process::Perf		PACKAGE = Win32::Process::Perf
+
+
 
 void
 open_query()
@@ -67,14 +113,11 @@ CleanUp(objQuery)
 	SV* objQuery
 
 	PREINIT:
-
 		PDH_STATUS stat;
 		HQUERY	pObj;
-
 	PPCODE:
 
 		pObj = (HQUERY)SvIV(objQuery);
-
 		stat = PdhCloseQuery(pObj);
 
 
@@ -206,15 +249,10 @@ collect_data(pQwy, pError)
 	SV* pError
 
 	PREINIT:
-
 		HQUERY hQwy;
 		PDH_STATUS stat;
-
 	PPCODE:
-
-
 		hQwy = (HQUERY)SvIV(pQwy);
-
 		stat = PdhCollectQueryData(hQwy);
 
 		switch(stat)
@@ -564,6 +602,135 @@ explain_counter(pObject, pCounter, pInstance, pQwy, pError)
 
 
 void
+GetProcessUser(sv_PID,pError)
+	SV* sv_PID
+	SV* pError
+
+	PREINIT:
+		HANDLE hprocess = 0;
+		HANDLE hdlToken = 0;
+		DWORD PPID;
+		DWORD cbBuffer;
+		DWORD cbRequired;
+		TOKEN_USER* pUserInfo = NULL;
+		TCHAR       szUser[INITIAL_SIZE];
+		TCHAR	    szError[INITIAL_SIZE];
+		TCHAR 	    temp[INITIAL_SIZE];
+		LPVOID lpMsgBuf;
+	PPCODE:
+	{
+		ZeroMemory(szUser, (sizeof(szUser)/sizeof(TCHAR)));
+		ZeroMemory(szError, (sizeof(szError)/sizeof(TCHAR)));
+		PPID = (DWORD)SvIV(sv_PID);
+		hprocess = OpenProcess(PROCESS_QUERY_INFORMATION, 1, PPID);
+		if(hprocess != NULL)
+		{
+			if(OpenProcessToken(hprocess,TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hdlToken)!=0)
+			{
+				cbBuffer = 0;
+				if(!GetTokenInformation(hdlToken,TokenUser,NULL,cbBuffer,&cbRequired)) {
+					if (GetLastError() == ERROR_INSUFFICIENT_BUFFER){
+            					pUserInfo = (TOKEN_USER *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, cbRequired);
+            					if (pUserInfo == NULL)
+            					{
+            						wsprintf(temp, "Can not allocate memory to pUserInfo");
+            						sv_setpv(pError, temp);
+               						XSRETURN(-1);
+               					}
+						cbBuffer = cbRequired;
+						cbRequired = 0;
+						if(!GetTokenInformation(hdlToken,TokenUser,(LPVOID)pUserInfo,cbBuffer,&cbRequired))
+						{
+							FormatMessage( FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,NULL,GetLastError(),MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),(LPTSTR) &lpMsgBuf,0,NULL );
+							wsprintf(temp, "GetTokenInformation() failed: %s", (LPTSTR)lpMsgBuf);
+							sv_setpv(pError, temp);
+							XSRETURN(-1);
+						}
+						// Get the username for the Process
+						if(!ConvertSid((pUserInfo->User).Sid, szUser, szError))
+						{
+							CleanUp(hprocess,hdlToken);
+							sv_setpv(pError, szError);
+							XSRETURN(-1);
+						}
+					} else
+					{
+						
+						FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,NULL,GetLastError(),MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),(LPTSTR) &lpMsgBuf,0,NULL );
+						CleanUp(hprocess,hdlToken);
+						wsprintf(temp, "GetLastError returns: %s", (LPTSTR)lpMsgBuf);
+						sv_setpv(pError, temp);
+						XSRETURN(-1);
+					}
+				} else {
+					CleanUp(hprocess,hdlToken);
+					sv_setpv(pError, "GetTokenInformation(): unknown error.");
+					XSRETURN(-1);
+				}
+				
+			} else {
+				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,NULL,GetLastError(),MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR) &lpMsgBuf,0,NULL );
+				CleanUp(hprocess,hdlToken);
+				//printf("GetLastError returns: %s\n", (LPCTSTR)lpMsgBuf);
+				wsprintf(temp, "ProcessToken could not be opened: %s", (LPTSTR)lpMsgBuf);
+				sv_setpv(pError, temp);
+				XPUSHs(sv_2mortal(newSViv(-1)));
+			}
+		} else {
+			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,NULL,GetLastError(),MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),(LPTSTR) &lpMsgBuf,0,NULL );
+			CleanUp(hprocess,hdlToken);
+			//printf("GetLastError returns: %s\n", (LPCTSTR)lpMsgBuf);
+			wsprintf(temp, "Process could not be opened: %s", (LPTSTR)lpMsgBuf);
+			sv_setpv(pError, temp);
+			XPUSHs(sv_2mortal(newSViv(-1)));
+		}
+		if (!HeapFree(GetProcessHeap(), 0, (LPVOID)pUserInfo))
+		{
+         		sv_setpv(pError, "HeapFree() failed.");
+			XSRETURN(-1);
+         	}
+		CleanUp(hprocess,hdlToken);
+		XPUSHs(sv_2mortal(newSVpv((char *)szUser, strlen(szUser))));
+	}	// End PPCODE
+
+
+void
+OSIsSupported(pError)
+		SV* pError
+	PREINIT:
+		OSVERSIONINFOEX osvi;
+		BOOL bOsVersionInfoEx;
+		int supported;
+	PPCODE:
+	{
+		supported=-1;
+		ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
+   		osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+		if( !(bOsVersionInfoEx = GetVersionEx ((OSVERSIONINFO *) &osvi)) )
+   		{
+      			osvi.dwOSVersionInfoSize = sizeof (OSVERSIONINFO);
+			if (! GetVersionEx ( (OSVERSIONINFO *) &osvi) ) 
+			{
+				sv_setpv(pError, "Can not get OS Version!");
+				XSRETURN(-1);
+			}
+   		}
+   		switch (osvi.dwPlatformId)
+		{
+			case VER_PLATFORM_WIN32_NT:
+				if((osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 2) ||  (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 1 ) || ( osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 0 ) || (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 0))
+					supported = 1;
+				break;
+			
+			default:
+				supported = -1;
+				sv_setpv(pError, "OS not supported.");
+				break;
+		}
+		XPUSHs(sv_2mortal(newSViv(supported)));
+   	}
+
+void
 CPU_Time(sv_PID,pError)
 		SV* sv_PID
 		SV* pError
@@ -587,14 +754,8 @@ CPU_Time(sv_PID,pError)
 				retcode = GetProcessTimes(hprocess,&CreationTime,&ExitTime,&KernelTime,&UserTime);
 				if(retcode) {
 					retcode = FileTimeToSystemTime(&KernelTime, &SystemTime);
-//					min = ;
-//					hour = ;
-//					sec = ;
 					seconds = (long)SystemTime.wSecond + ((long)SystemTime.wMinute*60) + ((long)SystemTime.wHour*3600);	//Cpu time?
 					retcode = FileTimeToSystemTime(&UserTime, &SystemTime);
-//					min = ;
-//					hour = ;
-//					sec = ;
 					seconds = seconds + ((long)SystemTime.wSecond + ((long)SystemTime.wMinute*60) + ((long)SystemTime.wHour*3600));
 				} else {
 					sv_setpv(pError, "Process coud not be opened.");
@@ -602,5 +763,5 @@ CPU_Time(sv_PID,pError)
 				}
 			}
 			CloseHandle(hprocess);
-			XPUSHs(sv_2mortal(newSViv(seconds)));			
+			XPUSHs(sv_2mortal(newSViv(seconds)));
 			

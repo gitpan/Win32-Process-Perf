@@ -19,12 +19,16 @@ ok(1); # If we made it this far, we're ok.
 use Win32::Process::Perf;
 use strict;
 
+
 my $host = $ENV{'COMPUTERNAME'};
 if(length($host) == 0)
 {
 	print "COMPUTERNAME not defined\n";
 	exit;
 }
+
+
+print "Using $host for the computername and \"explorer\" for the process.\n";
 my $PERF = Win32::Process::Perf->new($host, "explorer");
 if(!$PERF)
 {
@@ -32,7 +36,7 @@ if(!$PERF)
 }
 
 my $anz = $PERF->GetNumberofCounterNames();
-print "$anz Counters available\n";
+print "$anz Counters available\n\n";
 my %counternames = $PERF->GetCounterNames();
 
 print "Avilable Counternames:\n";
@@ -40,7 +44,7 @@ foreach (1 .. $anz)
 {
 	print $counternames{$_} . "\n";
 }
-print "\n";
+print "\n\n";
 
 my $status = $PERF->PAddCounter();
 if($status == 0) {
@@ -49,22 +53,22 @@ if($status == 0) {
 	exit;
 }
 
-print "Values...\n";
-while(1)
-{
-	$status = $PERF->PCollectData();
-	if($status == 0) {
-		my $error = $PERF->GetErrorText();
-		print "ERROR: " . $error . "\n";
-		exit;
-	}
-	my %val = $PERF->PGetCounterValues($status);
-	foreach  (1..$anz+1)
-	{
-		if(!$val{1}) { exit; }
-		my $key = $counternames{$_};
-		print "$key=" . $val{$_} . "\n";
-	}
-	sleep(1);
-	print "\n";
+$status = $PERF->PCollectData();
+if($status == 0) {
+	my $error = $PERF->GetErrorText();
+	print "ERROR: " . $error . "\n";
+	exit;
 }
+my %val = $PERF->PGetCounterValues($status);
+my $cputime = $PERF->PGetCPUTime();
+print "The CPU time for the process: $cputime (secounds)\n";
+my $username = $PERF->PGetUserName();
+print "The user name which created the process: $username\n\n";
+print "Now are the counternames and their values:\n";
+foreach  (1..$anz+1)
+{
+	if(!$val{1}) { exit; }
+	my $key = $counternames{$_};
+	print "$key=" . $val{$_} . "\n";
+}
+print "\n";

@@ -1,6 +1,6 @@
 						Win32-Process-Perf
-							Version 0.02
-						 19 September 2004	
+							Version 1.00
+						 19 April 2005
 				     
 	Copyright (C) 2004 Reinhard Pagitsch.  All Rights Reserved
 		   Homepage: http://members.aon.at/rpagitsch/
@@ -11,7 +11,7 @@
 
 The latest version can be retrieved from:
 
-http://search.cpan.org/~rpagitsch/Win32-Process-Perf-0.01/
+http://search.cpan.org/~rpagitsch/
 
 The following modules are required:
 

@@ -19,7 +19,7 @@ our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 our @EXPORT = qw();
 
-our $VERSION = '0.03';
+our $VERSION = '1.00';
 
 bootstrap Win32::Process::Perf $VERSION;
 
@@ -35,12 +35,11 @@ sub new
 		croak("You must specify a machine to connect to and a process to monitor");
 		return(undef);
 	}
-	$self->{'machine'}=shift;		# the PC name 
+	$self->{'machine'}=shift || $ENV{'COMPUTERNAME'};		# the PC name 
 	$self->{'processname'}=shift;	# The name of the process which want to capture
 	$self->{'logfile'}=undef;		# where the process informations are written
 	$self->{'process'}="Prozess";	# used internal
 	$self->{'counternames'}={},		# get availabel Counternames from File
-	$self->{'counterhandels'}=[],
 	$self->{'zaehler'}=	0,
 	$self->{'HQUERY'}=	undef,
 	$self->{'COUNTERS'}=undef,
@@ -51,8 +50,13 @@ sub new
 	bless $self, $class;
 
 # now we have to load the language independend file which stores the Process Counters
+	my $res = $self->OSSupported();
+	if($res == -1)
+	{
+		croak($self->{'ERRORMSG'});
+	} 
 	$self->LoadLanguageFile();
-	my $res = connect_to_box($self->{'machine'}, $self->{'ERRORMSG'});
+	$res = connect_to_box($self->{'machine'}, $self->{'ERRORMSG'});
 	if($res == 0)
 	{
 		$self->{'HQUERY'} = open_query();
@@ -82,10 +86,10 @@ sub PAddCounter
 	foreach (1..$n_counters) {
 		my $CounterName = $self->{'counternames'}->{$_};
 		my $NewCounter = add_counter($self->{'process'},$self->{'processname'}, $CounterName, $self->{'HQUERY'}, $self->{'ERRORMSG'});
-		if($self->{'ERRORMSG'}) { $self->{'isError'} = 1; }
-		if($NewCounter == -1) { 
+		if($NewCounter == -1) {
+			$self->{'isError'} = 1;
 			$self->{'ERRORMSG'} .= " Counter ($ObjectName, $CounterName) not added";
-			return 0;
+			return -1;
 		}
 		$self->{'COUNTERS'}->{$_} = $NewCounter;
 		
@@ -101,23 +105,38 @@ sub PGetCounterValues
 	my %h = ();
 	my $c = 0;
 	my $cputime=0;
+	my $test = 0;
 	$self->{'isError'} = 0;
 	
 	foreach  (1 .. $count) {
 		$c=$_;
 		my $retval = collect_counter_value($self->{'HQUERY'}, $self->{'COUNTERS'}->{$c},$self->{'ERRORMSG'});
 		if($retval == -1) {
-			return;
+			$self->{'isError'} = 1;
+			return -1;
 		}
 		if($c == 1)
 		{
-			$cputime = CPU_Time($retval,$self->{'ERRORMSG'});
+			$self->{PID} = $retval;
 		}
 		$h{$c} = $retval;
 	}
-	$c++;
-	$h{$c} = $cputime;
 	return %h;
+}
+
+sub PGetUserName
+{
+	my $self=shift;
+	$self->{'ERRORMSG'} = "";
+	$self->{'isError'} = 0;
+	my $username = GetProcessUser($self->{PID},$self->{'ERRORMSG'});
+	return $username;
+}
+sub PGetCPUTime
+{
+	my $self=shift;
+	my $cputime = CPU_Time($self->{PID},$self->{'ERRORMSG'});
+	return $cputime;
 }
 
 sub UseProcessTimes
@@ -139,7 +158,8 @@ sub SetOutputFormat
 sub GetErrorText
 {
 	my $self=shift;
-	return $self->{'ERRORMSG'};
+	my $isError = $self->{'isError'};
+	$isError == 1 ? return $self->{'ERRORMSG'} : "";
 }
 
 sub GetNumberofCounterNames
@@ -157,8 +177,6 @@ sub GetCounterNames
 		$c=$_;
 		$h{$c} = $self->{'counternames'}->{$c};
 	}
-	$c++;
-	$h{$c} = "CPU Time";
 	return %h;
 }
 
@@ -166,7 +184,13 @@ sub GetCounterNames
 # 
 # internal functions
 # 
-
+sub OSSupported
+{
+	my $self=shift;
+	$self->{'isError'} = 0;
+	my $retcode =OSIsSupported($self->{'ERRORMSG'});
+	return $retcode;
+}
 ############################
 #
 # collect the data
@@ -271,12 +295,12 @@ __END__
 
 =head1 NAME
 
-Win32::Process::Perf Shows Performance counter for a process
+Win32::Process::Perf: Shows Performance counter for a given process
 
 =head1 VERSION
   
-This document describes version 0.01 of Win32::Process::Perf, released
-September 12, 2004.
+This document describes version 1.00 of Win32::Process::Perf, released
+in April, 2005.
 
 =head1 SYNOPSIS
   
@@ -312,6 +336,10 @@ September 12, 2004.
 		  exit;
 	  }
 	  my %val = $PERF->PGetCounterValues($status);
+	  # now you can also get the CPU Time:
+	  my $cputime = $PERF->PGetCPUTime();
+	  # and also the username which started the process:
+	  my $username = $PERF->PGetUserName();
 	  foreach  (1..$anz)
 	  {
            if(!$val{$_}) { exit; }
@@ -401,12 +429,31 @@ To check if the process ended check if the value of the hash exist.
 The last value of %val is the CPU time in seconds of the process.
 Please take a look in test.pl
 
+=item PGetCPUTime()
+
+   With this function the time the process used on the CPU can be retrived.
+   
+   my $cputime=$PERF->PGetCPUTime()
+   
+   The function returns the CPU time in seconds on success. If the function fails -1 will be returned
+   NOTE: Use it only after the call to $PERF->PGetCounterValues();
+   
+=item PGetUserName()
+
+   This function returns the username which started the process.
+   
+   my $username = $PERF->PGetUserName();
+   
+   On success the function returns the username and if it fails -1.
+   NOTE: Use it only after the call to $PERF->PGetCounterValues();
+   Use $PERF->GetErrorText(); to get the error ocured if the function was called.
+
 =back
 
 =head1 PREREQUISITE
 
 Perl Modules: L<File::Basename> <Win32::Locale>
-Win32 dll's pdh.dll
+Win32 dll's pdh.dll and now Advapi32.lib
 
 =head1 TODO
 

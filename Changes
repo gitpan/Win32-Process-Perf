@@ -10,3 +10,7 @@ Revision history for Perl extension Win32::Process::Perf.
 		Changed makefile.pl PREREQ_PM and test.pl to use the environmet variable COMPUTERNAME.
 		Added en-gb.dat for UK
 		Shall now the final release
+		
+1.00  April 2005
+	  Added PGetUserName, retrives the user name for the given process
+	  Changed handling for cpu time. It is now an additional function
