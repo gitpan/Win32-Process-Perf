@@ -1,0 +1,12 @@
+Changes
+Makefile.PL
+MANIFEST
+lib/Win32/Process/Perf.pm
+Perf.xs
+perf.h
+lib/Win32/Process/Perf/de-at.dat
+lib/Win32/Process/Perf/de-de.dat
+lib/Win32/Process/Perf/en-us.dat
+README
+META.yml                                 Module meta-data (added by MakeMaker)
+test.pl
