@@ -19,7 +19,13 @@ ok(1); # If we made it this far, we're ok.
 use Win32::Process::Perf;
 use strict;
 
-my $PERF = Win32::Process::Perf->new("RP", "UEDIT32");
+my $host = $ENV{'COMPUTERNAME'};
+if(length($host) == 0)
+{
+	print "COMPUTERNAME not defined\n";
+	exit;
+}
+my $PERF = Win32::Process::Perf->new($host, "explorer");
 if(!$PERF)
 {
 	die;

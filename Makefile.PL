@@ -4,7 +4,7 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     'NAME'		=> 'Win32::Process::Perf',
     'VERSION_FROM'	=> 'lib/Win32/Process/Perf.pm', # finds $VERSION
-    'PREREQ_PM'		=> {}, # e.g., Module::Name => 1.1
+    'PREREQ_PM'		=> { Win32::Locale => 0.04, File::Basename => 2.6 }, # e.g., Module::Name => 1.1
     ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
       (ABSTRACT => 'Performance counter for processes', 
        AUTHOR     => 'Reinhard Pagitsch <rpirpag@gmx.at>') : ()),
