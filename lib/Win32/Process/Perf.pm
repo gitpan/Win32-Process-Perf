@@ -19,7 +19,7 @@ our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 our @EXPORT = qw();
 
-our $VERSION = '1.00';
+our $VERSION = '1.01';
 
 bootstrap Win32::Process::Perf $VERSION;
 

@@ -36,7 +36,7 @@
 #include "perf.h"
 #include <stdio.h>
 #include <tchar.h>
-#include <Sddl.h>
+//#include <Sddl.h>
 
 #define INITIAL_SIZE 512
 
