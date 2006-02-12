@@ -19,7 +19,7 @@ our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 our @EXPORT = qw();
 
-our $VERSION = '1.01';
+our $VERSION = '1.02';
 
 bootstrap Win32::Process::Perf $VERSION;
 
@@ -144,6 +144,12 @@ sub UseProcessTimes
 	my $self=shift;
 	$self->{'useprocesstimes'} =1;
 	
+}
+
+sub PGetPid
+{
+	my $self=shift;
+	return $self->{PID} || undef;
 }
 
 sub SetOutputFormat
@@ -447,6 +453,10 @@ Please take a look in test.pl
    On success the function returns the username and if it fails -1.
    NOTE: Use it only after the call to $PERF->PGetCounterValues();
    Use $PERF->GetErrorText(); to get the error ocured if the function was called.
+
+=item PGetPid()
+	
+	This function returns the process id on success and undef if it fails.
 
 =back
 
