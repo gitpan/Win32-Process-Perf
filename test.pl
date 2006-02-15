@@ -29,10 +29,10 @@ if(length($host) == 0)
 
 
 print "Using $host for the computername and \"explorer\" for the process.\n";
-my $PERF = Win32::Process::Perf->new($host, "salamand");
+my $PERF = Win32::Process::Perf->new($host, "explorer");
 if(!$PERF)
 {
-	die "can not open !\n";
+	die;
 }
 
 my $anz = $PERF->GetNumberofCounterNames();

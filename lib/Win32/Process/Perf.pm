@@ -19,7 +19,7 @@ our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 our @EXPORT = qw();
 
-our $VERSION = '1.02';
+our $VERSION = '1.03';
 
 bootstrap Win32::Process::Perf $VERSION;
 
@@ -60,6 +60,11 @@ sub new
 	if($res == 0)
 	{
 		$self->{'HQUERY'} = open_query();
+		if($self->{'HQUERY'} == -1) 
+		{
+			print "Failed to open query\n";
+			return undef;
+		}
 		return $self;
 	}
 	else
@@ -85,7 +90,7 @@ sub PAddCounter
 	my $query = $self->{'HQUERY'};
 	foreach (1..$n_counters) {
 		my $CounterName = $self->{'counternames'}->{$_};
-		my $NewCounter = add_counter($self->{'process'},$self->{'processname'}, $CounterName, $self->{'HQUERY'}, $self->{'ERRORMSG'});
+		my $NewCounter = add_counter($self->{'process'},$self->{'processname'}, $CounterName, $self->{'machine'}, $self->{'HQUERY'}, $self->{'ERRORMSG'});
 		if($NewCounter == -1) {
 			$self->{'isError'} = 1;
 			$self->{'ERRORMSG'} .= " Counter ($ObjectName, $CounterName) not added";
@@ -312,7 +317,8 @@ in April, 2005.
   
   use Win32::Process::Perf;
   my $PERF = Win32::Process::Perf->new(<computer name>, <process name>);
-  # e.g. my $PERF = Win32::Process::Perf->new("MyPC", "explorer");
+  # The computer name have to be used without the \\
+  # e.g. my $PERF = Win32::Process::Perf->new("taifun", "explorer");
   # check if success:
   if(!$PERF)
   {
