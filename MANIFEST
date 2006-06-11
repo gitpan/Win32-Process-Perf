@@ -12,3 +12,4 @@ lib/Win32/Process/Perf/en-gb.dat
 README
 META.yml                                 Module meta-data (added by MakeMaker)
 test.pl
+SIGNATURE

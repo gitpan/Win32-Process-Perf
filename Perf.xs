@@ -36,7 +36,7 @@
 #include "perf.h"
 #include <stdio.h>
 #include <tchar.h>
-#include <Sddl.h>
+//#include <Sddl.h>
 
 #define INITIAL_SIZE 512
 
@@ -122,11 +122,10 @@ CleanUp(objQuery)
 
 
 void
-add_counter(PName, ObjectName, CounterName, machine, pQwy, pError)
+add_counter(PName, ObjectName, CounterName, pQwy, pError)
 	SV* PName
 	SV* ObjectName
 	SV* CounterName
-	SV* machine
 	SV* pQwy
 	SV* pError
 
@@ -141,7 +140,6 @@ add_counter(PName, ObjectName, CounterName, machine, pQwy, pError)
 		STRLEN len1;
 		STRLEN len2;
 		STRLEN len3;
-		STRLEN len4;
 
 	PPCODE:
 
@@ -153,7 +151,6 @@ add_counter(PName, ObjectName, CounterName, machine, pQwy, pError)
 		len1 = sv_len(ObjectName);
 		len2 = sv_len(CounterName);
 		len3 = sv_len(PName);
-		len4 = sv_len(machine);
 		if(!SvPOK(ObjectName))
 		{
 			croak("No process given");
@@ -163,8 +160,7 @@ add_counter(PName, ObjectName, CounterName, machine, pQwy, pError)
 			croak("No counter given");
 		}
 		
-		sprintf(str,"\\\\%s\\%s(%s)\\%s", SvPV(machine,len4),SvPV(PName,len3), SvPV(ObjectName,len1),SvPV(CounterName,len2));
-		//printf("%s\n", str);
+		sprintf(str,"\\%s(%s)\\%s",SvPV(PName,len3), SvPV(ObjectName,len1),SvPV(CounterName,len2));
 		stat = PdhAddCounter(hQwy, (LPTSTR)str, dwGlen, &cnt);
 			switch(stat)
 			{
