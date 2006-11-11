@@ -29,11 +29,13 @@ if(length($host) == 0)
 
 
 print "Using $host for the computername and \"explorer\" for the process.\n";
-my $PERF = Win32::Process::Perf->new($host, "salamand");
+my $PERF = Win32::Process::Perf->new($host, "explorer", "gb");
 if(!$PERF)
 {
-	die "can not open !\n";
+	die;
 }
+
+print "The language ID: " .  $PERF->GetLanguage() . "\n";
 
 my $anz = $PERF->GetNumberofCounterNames();
 print "$anz Counters available\n\n";
@@ -47,12 +49,15 @@ foreach (1 .. $anz)
 print "\n\n";
 
 my $status = $PERF->PAddCounter();
-if($status == 0) {
+if($status == -1) {
 	my $error = $PERF->GetErrorText();
 	print $error . "\n\n";
 	exit;
 }
-
+my $retcode=$PERF->PdhEnumObjects();
+print "The Retcode: $retcode\n";
+undef $PERF;
+exit;
 $status = $PERF->PCollectData();
 if($status == 0) {
 	my $error = $PERF->GetErrorText();

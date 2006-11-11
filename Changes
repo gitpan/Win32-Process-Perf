@@ -1,11 +1,17 @@
 Revision history for Perl extension Win32::Process::Perf.
 
+1.05 Nov. 2006
+	  Added language files for cz and cs.
+	
+1.04 	Added SIGNATURE  
 
-1.03 May 2006
-	Added SIGNATURE 
-
+1.03 Feb. 2006
+	  Changed PAddCounter to use also the machine name. 
+	  For some reasons to collect data from remote machines
+	  it is neccessary to have it also in the counter path
+	  
 1.02 Feb. 2006
-	  Added function PGetPid, returns the PID of the process
+	  Added function PGetPid, returns the PID of the process.
 
 1.01 July 2005
 	  removed sddl.h from the XS source, because it is not needed.	  

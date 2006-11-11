@@ -36,9 +36,21 @@
 #include "perf.h"
 #include <stdio.h>
 #include <tchar.h>
-//#include <Sddl.h>
+#include <Sddl.h>
 
 #define INITIAL_SIZE 512
+
+
+PDH_STATUS PPdhEnumObjects(LPCTSTR szMachineName, LPTSTR mszObjectList)
+{
+	DWORD pcchBufferLength=10000;
+	PDH_STATUS stat = PdhEnumObjectsH(H_REALTIME_DATASOURCE,szMachineName,mszObjectList,&pcchBufferLength,PERF_DETAIL_WIZARD, TRUE);
+	printf("The Len: %d %s %s\n",pcchBufferLength, szMachineName,mszObjectList);
+	if(stat != ERROR_SUCCESS)
+		return stat;
+	return pcchBufferLength;
+
+}
 
 void CleanUp(HANDLE hprocess, HANDLE hdlToken)
 {
@@ -78,6 +90,17 @@ BOOL ConvertSid(PSID pSid, LPTSTR szUser, LPTSTR szError)
       return TRUE;
 
    }
+
+/* int GetLanguageInfo(LPSTR *lpLCData, int length, LCID Locale)
+{
+	LCTYPE LCType=LOCALE_NOUSEROVERRIDE |LOCALE_USE_CP_ACP;
+	return GetLocaleInfo(
+  Locale,      // locale identifier
+  LCTYPE LCType,    // information type
+  lpLCData,  // information buffer
+  length       // size of buffer
+);
+} */
 
 MODULE = Win32::Process::Perf		PACKAGE = Win32::Process::Perf
 
@@ -122,10 +145,11 @@ CleanUp(objQuery)
 
 
 void
-add_counter(PName, ObjectName, CounterName, pQwy, pError)
+add_counter(PName, ObjectName, CounterName, machine, pQwy, pError)
 	SV* PName
 	SV* ObjectName
 	SV* CounterName
+	SV* machine
 	SV* pQwy
 	SV* pError
 
@@ -140,6 +164,7 @@ add_counter(PName, ObjectName, CounterName, pQwy, pError)
 		STRLEN len1;
 		STRLEN len2;
 		STRLEN len3;
+		STRLEN len4;
 
 	PPCODE:
 
@@ -151,6 +176,7 @@ add_counter(PName, ObjectName, CounterName, pQwy, pError)
 		len1 = sv_len(ObjectName);
 		len2 = sv_len(CounterName);
 		len3 = sv_len(PName);
+		len4 = sv_len(machine);
 		if(!SvPOK(ObjectName))
 		{
 			croak("No process given");
@@ -160,7 +186,8 @@ add_counter(PName, ObjectName, CounterName, pQwy, pError)
 			croak("No counter given");
 		}
 		
-		sprintf(str,"\\%s(%s)\\%s",SvPV(PName,len3), SvPV(ObjectName,len1),SvPV(CounterName,len2));
+		sprintf(str,"\\\\%s\\%s(%s)\\%s", SvPV(machine,len4),SvPV(PName,len3), SvPV(ObjectName,len1),SvPV(CounterName,len2));
+		//printf("%s\n", str);
 		stat = PdhAddCounter(hQwy, (LPTSTR)str, dwGlen, &cnt);
 			switch(stat)
 			{
@@ -302,12 +329,17 @@ collect_counter_value(pQwy, pCounter, pError)
 		hCnt = (HCOUNTER)SvIV(pCounter);
 
 		stat = PdhGetFormattedCounterValue(hCnt, PDH_FMT_LONG | PDH_FMT_NOSCALE , &dwType, &val);
+		
 
 		switch(stat)
 		{
 			case ERROR_SUCCESS:
-
-				XPUSHs(sv_2mortal(newSViv(val.longValue)));
+				if(val.CStatus == PDH_CSTATUS_VALID_DATA)
+					XPUSHs(sv_2mortal(newSViv(val.longValue)));
+				else {
+					sv_setpv(pError, "PDH_Cstatus is not PDH_CSTATUS_VALID_DATA.");
+					XPUSHs(sv_2mortal(newSViv(-1)));
+				}
 
 				break;
 
@@ -358,11 +390,11 @@ list_objects(pBox, pError)
 		len = sv_len(pBox);
 		szBox = SvPV(pBox, len);
 
-		stat = PdhEnumObjects(NULL, szBox, NULL, &dwSize, PERF_DETAIL_NOVICE, 0);
+		stat = PdhEnumObjects(NULL, szBox, NULL, &dwSize, PERF_DETAIL_EXPERT, 0);
 
 		Newz(0, szBuffer, (int)dwSize, char);
 
-		stat = PdhEnumObjects(NULL, szBox, szBuffer, &dwSize, PERF_DETAIL_NOVICE, 0);
+		stat = PdhEnumObjects(NULL, szBox, szBuffer, &dwSize, PERF_DETAIL_EXPERT, 0);
 
 		switch(stat)
 		{
@@ -742,14 +774,17 @@ CPU_Time(sv_PID,pError)
 		FILETIME UserTime;
 		SYSTEMTIME SystemTime;
 		int retcode;
-		long min;
-		long hour;
-		long sec;
+		//long min;
+		//long hour;
+		//long sec;
 		long seconds = 0;
+		int err=0;
+		//char   wszMsgBuff[512];
 		DWORD PID; 
 	PPCODE:
 			PID = (DWORD)SvIV(sv_PID);
-			if((hprocess = OpenProcess(PROCESS_ALL_ACCESS, 0, PID)) != NULL)
+			SetLastError(0);
+			if((hprocess = OpenProcess(PROCESS_QUERY_INFORMATION, 0, PID)) != NULL)
 			{
 				retcode = GetProcessTimes(hprocess,&CreationTime,&ExitTime,&KernelTime,&UserTime);
 				if(retcode) {
@@ -757,11 +792,60 @@ CPU_Time(sv_PID,pError)
 					seconds = (long)SystemTime.wSecond + ((long)SystemTime.wMinute*60) + ((long)SystemTime.wHour*3600);	//Cpu time?
 					retcode = FileTimeToSystemTime(&UserTime, &SystemTime);
 					seconds = seconds + ((long)SystemTime.wSecond + ((long)SystemTime.wMinute*60) + ((long)SystemTime.wHour*3600));
+					CloseHandle(hprocess);
+					XPUSHs(sv_2mortal(newSViv(seconds)));
 				} else {
 					sv_setpv(pError, "Process coud not be opened.");
 					XPUSHs(sv_2mortal(newSViv(-1)));
 				}
+			} else {
+				err = GetLastError();
+				sv_setpv(pError, "Process coud not be opened.");
+				XPUSHs(sv_2mortal(newSViv(-1)));
 			}
-			CloseHandle(hprocess);
-			XPUSHs(sv_2mortal(newSViv(seconds)));
 			
+
+void
+_GetLanguage(Locale)
+		int Locale
+	PREINIT:
+	//TCHAR data[60];
+	LANGID SID;
+	LANGID UID;
+	LANGID LID;
+	LCID ID;
+	PPCODE:
+	{
+		SID = GetSystemDefaultLangID();
+		UID = GetUserDefaultLangID();
+		ID=GetUserDefaultLCID();
+		//printf("GetUserDefaultLCID: %X GetSystemDefaultLCID: %X\n", ID, GetSystemDefaultLCID());
+		
+		if(SID != UID)
+			LID = SID;
+		else
+			LID = UID;
+		//printf("The LangID: %X SID: %X UID %X\n", LID, SID, UID);
+		//XPUSHs(sv_2mortal(newSVpv((char *)data, strlen(data))));
+		XPUSHs(sv_2mortal(newSViv(LID)));
+	}
+
+
+void
+_PdhEnumObjects(szMachineName, mszObjectList)
+		SV* szMachineName
+		SV* mszObjectList
+	PREINIT:
+		char *machine;
+		char objectList[10000];
+		STRLEN len1;
+		//STRLEN len2;
+		PDH_STATUS ret=0;
+	PPCODE:
+	{
+		len1 = sv_len(szMachineName);
+		machine=SvPV(szMachineName,len1);
+		printf("The machine: %s\n", machine);
+		ret=PPdhEnumObjects(machine,(LPTSTR)objectList);
+		printf("Return code: %d\n", ret);
+	}

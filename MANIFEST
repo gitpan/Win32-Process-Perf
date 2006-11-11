@@ -9,6 +9,8 @@ lib/Win32/Process/Perf/de-at.dat
 lib/Win32/Process/Perf/de-de.dat
 lib/Win32/Process/Perf/en-us.dat
 lib/Win32/Process/Perf/en-gb.dat
+lib/Win32/Process/Perf/cs.dat
+lib/Win32/Process/Perf/cz.dat
 README
 META.yml                                 Module meta-data (added by MakeMaker)
 test.pl

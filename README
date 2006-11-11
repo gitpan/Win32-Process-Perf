@@ -1,12 +1,12 @@
-						Win32-Process-Perf
-							Version 1.00
-						 19 April 2005
+                                              Win32-Process-Perf
+                                                 Version 1.04
+                                                 11. Nov 2006
 				     
-	Copyright (C) 2004 Reinhard Pagitsch.  All Rights Reserved
-		   Homepage: http://members.aon.at/rpagitsch/
+	                          Copyright (C) 2004-2006 Reinhard Pagitsch.  All Rights Reserved
+		                             Homepage: http://members.aon.at/rpagitsch/
 							
-          This is free software; you can redistribute it and/or
-             modify it under the same terms as Perl itself.
+                                      This is free software; you can redistribute it and/or
+                                         modify it under the same terms as Perl itself.
 					
 
 The latest version can be retrieved from:

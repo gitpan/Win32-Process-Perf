@@ -19,7 +19,9 @@ our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 our @EXPORT = qw();
 
-our $VERSION = '1.04';
+our $VERSION = '1.05';
+
+our %LANGUAGES = ( 'de' =>'de-de', 'at' => 'de-at', 'gb'=> 'en-gb', 'us' =>'en-us', 'cs'=>'cs', 'cz'=>'cz' );
 
 bootstrap Win32::Process::Perf $VERSION;
 
@@ -30,13 +32,14 @@ sub new
 {
 	my $class = shift;
 	my $self = {};
-	unless(scalar(@_) == 2)
+	unless(scalar(@_) >= 2 )
 	{
 		croak("You must specify a machine to connect to and a process to monitor");
 		return(undef);
 	}
 	$self->{'machine'}=shift || $ENV{'COMPUTERNAME'};		# the PC name 
 	$self->{'processname'}=shift;	# The name of the process which want to capture
+	$self->{'language'} = shift || undef;
 	$self->{'logfile'}=undef;		# where the process informations are written
 	$self->{'process'}="Prozess";	# used internal
 	$self->{'counternames'}={},		# get availabel Counternames from File
@@ -47,6 +50,7 @@ sub new
 	$self->{'isError'}=0,
 	$self->{'ERRORMSG'}=undef;
 	$self->{'PERFMON'} = undef;
+	$self->{'language'}=$LANGUAGES{$self->{'language'}} if defined $self->{'language'};
 	bless $self, $class;
 
 # now we have to load the language independend file which stores the Process Counters
@@ -55,11 +59,17 @@ sub new
 	{
 		croak($self->{'ERRORMSG'});
 	} 
-	$self->LoadLanguageFile();
+	if(!$self->LoadLanguageFile()) { print "Error loading language file!\n"; return; }
+	
 	$res = connect_to_box($self->{'machine'}, $self->{'ERRORMSG'});
 	if($res == 0)
 	{
 		$self->{'HQUERY'} = open_query();
+		if($self->{'HQUERY'} == -1) 
+		{
+			print "Failed to open query\n";
+			return undef;
+		}
 		return $self;
 	}
 	else
@@ -67,6 +77,17 @@ sub new
 		print "Failed to connect to $self->{'machine'}! [$self->{'ERRORMSG'}]\n";
 		return undef;
 	}
+}
+
+sub PdhEnumObjects
+{
+	my $self=shift;
+	#my $list="0" x 10000;
+	# _PdhEnumObjects($self->{'machine'}, $list);
+	my $Data = list_objects($self->{'machine'}, $self->{'ERRORMSG'});
+	my @Objects = split(/\|/, $Data);
+	return \@Objects;
+	
 }
 
 
@@ -85,7 +106,7 @@ sub PAddCounter
 	my $query = $self->{'HQUERY'};
 	foreach (1..$n_counters) {
 		my $CounterName = $self->{'counternames'}->{$_};
-		my $NewCounter = add_counter($self->{'process'},$self->{'processname'}, $CounterName, $self->{'HQUERY'}, $self->{'ERRORMSG'});
+		my $NewCounter = add_counter($self->{'process'},$self->{'processname'}, $CounterName, $self->{'machine'}, $self->{'HQUERY'}, $self->{'ERRORMSG'});
 		if($NewCounter == -1) {
 			$self->{'isError'} = 1;
 			$self->{'ERRORMSG'} .= " Counter ($ObjectName, $CounterName) not added";
@@ -135,7 +156,14 @@ sub PGetUserName
 sub PGetCPUTime
 {
 	my $self=shift;
-	my $cputime = CPU_Time($self->{PID},$self->{'ERRORMSG'});
+	my $cputime = 0;
+	$self->{'isError'} = 0;
+	$cputime= CPU_Time($self->{PID},$self->{'ERRORMSG'});
+	if($cputime == 0|| $cputime==-1)
+	{
+		$self->{'isError'} = 1;
+		return -1;
+	}
 	return $cputime;
 }
 
@@ -235,11 +263,17 @@ sub LoadLanguageFile
 	
 }
 
+sub GetLanguage
+{
+	my $self=shift;
+	my $LID=_GetLanguage(1);
+	return $LID;
+}
 
 sub SetLanguage
 {
 	my $self=shift;
-	$self->{'language'} = Win32::Locale::get_language();
+	$self->{'language'} = Win32::Locale::get_language() unless defined $self->{'language'};
 	
 }
 
@@ -249,6 +283,7 @@ sub SetCounterNames
 	$self->{'isError'} = 0;
 	my $path = dirname($INC{"Win32/Process/Perf.pm"});
 	my $languagefile = $path . "/Perf/" . $self->{'language'} . ".dat";
+	if(!-e $languagefile) { $languagefile = $self->{'language'} . ".dat"; }
 	if(open(FH, $languagefile))	# reading language file 
 	{
 		my @list = <FH>;
@@ -273,7 +308,6 @@ sub SetCounterNames
 	}
 	return 1; 
 }
-
 
 sub PrintError
 {
@@ -305,14 +339,15 @@ Win32::Process::Perf: Shows Performance counter for a given process
 
 =head1 VERSION
   
-This document describes version 1.03 of Win32::Process::Perf, released
-in May 2006.
+This document describes version 1.00 of Win32::Process::Perf, released
+in April, 2005.
 
 =head1 SYNOPSIS
   
   use Win32::Process::Perf;
   my $PERF = Win32::Process::Perf->new(<computer name>, <process name>);
-  # e.g. my $PERF = Win32::Process::Perf->new("MyPC", "explorer");
+  # The computer name have to be used without the \\
+  # e.g. my $PERF = Win32::Process::Perf->new("taifun", "explorer");
   # check if success:
   if(!$PERF)
   {
